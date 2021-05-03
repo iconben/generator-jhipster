@@ -1,5 +1,5 @@
 <%#
- Copyright 2013-2020 the original author or authors from the JHipster project.
+ Copyright 2013-2021 the original author or authors from the JHipster project.
 
  This file is part of the JHipster project, see https://www.jhipster.tech/
  for more information.
@@ -8,7 +8,7 @@
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
 
-      http://www.apache.org/licenses/LICENSE-2.0
+      https://www.apache.org/licenses/LICENSE-2.0
 
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,8 +25,8 @@ import { Link } from 'react-router-dom';
 export interface ILoginModalProps {
   showModal: boolean;
   loginError: boolean;
-  handleLogin: Function;
-  handleClose: Function;
+  handleLogin: (username: string, password: string, rememberMe: boolean) => void;
+  handleClose: () => void;
 }
 
 class LoginModal extends React.Component<ILoginModalProps> {
@@ -70,7 +70,7 @@ class LoginModal extends React.Component<ILoginModalProps> {
                   required errorMessage="Password cannot be empty!"
                   data-cy="password"
                 />
-                <AvGroup check inline<% if (authenticationType === 'session' && databaseType === 'no') { %> hidden<% } %>>
+                <AvGroup check inline<% if (authenticationTypeSession && databaseTypeNo) { %> hidden<% } %>>
                   <Label className="form-check-label">
                     <AvInput type="checkbox" name="rememberMe" /> <Translate contentKey="login.form.rememberme">Remember me</Translate>
                   </Label>
@@ -78,7 +78,7 @@ class LoginModal extends React.Component<ILoginModalProps> {
               </Col>
             </Row>
             <div className="mt-1">&nbsp;</div>
-            <%_ if (!skipUserManagement) { _%>
+<%_ if (!skipUserManagement) { _%>
             <Alert color="warning">
               <Link to="/account/reset/request" data-cy="forgetYourPasswordSelector">
                 <Translate contentKey="login.password.forgot">Did you forget your password?</Translate>
@@ -93,10 +93,10 @@ class LoginModal extends React.Component<ILoginModalProps> {
                 <Translate contentKey="global.messages.info.register.link">Register a new account</Translate>
               </Link>
             </Alert>
-            <%_ } _%>
+<%_ } _%>
           </ModalBody>
           <ModalFooter>
-            <Button color="secondary" onClick={handleClose} tabIndex="1">
+            <Button color="secondary" onClick={handleClose} tabIndex={1}>
                 <Translate contentKey="entity.action.cancel">Cancel</Translate>
             </Button>
             {' '}
