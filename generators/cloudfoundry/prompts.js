@@ -1,7 +1,7 @@
 /**
- * Copyright 2013-2017 the original author or authors from the JHipster project.
+ * Copyright 2013-2020 the original author or authors from the JHipster project.
  *
- * This file is part of the JHipster project, see https://jhipster.github.io/
+ * This file is part of the JHipster project, see https://www.jhipster.tech/
  * for more information.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -20,7 +20,7 @@ const chalk = require('chalk');
 const _ = require('lodash');
 
 module.exports = {
-    prompting
+    prompting,
 };
 
 function prompting() {
@@ -30,7 +30,7 @@ function prompting() {
         {
             name: 'cloudfoundryDeployedName',
             message: 'Name to deploy as:',
-            default: this.baseName
+            default: this.baseName,
         },
         {
             type: 'list',
@@ -39,29 +39,30 @@ function prompting() {
             choices: [
                 {
                     value: 'dev',
-                    name: 'dev'
+                    name: 'dev',
                 },
                 {
                     value: 'prod',
-                    name: 'prod'
-                }
+                    name: 'prod',
+                },
             ],
-            default: 0
+            default: 0,
         },
         {
             when: response => databaseType !== 'no',
             name: 'cloudfoundryDatabaseServiceName',
             message: 'What is the name of your database service?',
-            default: 'elephantsql'
+            default: 'elephantsql',
         },
         {
             when: response => databaseType !== 'no',
             name: 'cloudfoundryDatabaseServicePlan',
             message: 'What is the name of your database plan?',
-            default: 'turtle'
-        }];
+            default: 'turtle',
+        },
+    ];
 
-    this.prompt(prompts).then((props) => {
+    this.prompt(prompts).then(props => {
         this.cloudfoundryDeployedName = _.kebabCase(props.cloudfoundryDeployedName).split('-').join('');
         this.cloudfoundryProfile = props.cloudfoundryProfile;
         this.cloudfoundryDatabaseServiceName = props.cloudfoundryDatabaseServiceName;

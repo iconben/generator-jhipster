@@ -1,7 +1,7 @@
 /**
- * Copyright 2013-2017 the original author or authors from the JHipster project.
+ * Copyright 2013-2020 the original author or authors from the JHipster project.
  *
- * This file is part of the JHipster project, see https://jhipster.github.io/
+ * This file is part of the JHipster project, see https://www.jhipster.tech/
  * for more information.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,71 +16,111 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 module.exports = {
-    writeFiles
+    writeFiles,
 };
 
 function writeFiles() {
+    const suffix = 'k8s';
     return {
         writeDeployments() {
             for (let i = 0; i < this.appConfigs.length; i++) {
                 const appName = this.appConfigs[i].baseName.toLowerCase();
+                const appOut = appName.concat('-', suffix);
                 this.app = this.appConfigs[i];
-                this.template('_deployment.yml', `${appName}/${appName}-deployment.yml`);
-                this.template('_service.yml', `${appName}/${appName}-service.yml`);
+                this.template('deployment.yml.ejs', `${appOut}/${appName}-deployment.yml`);
+                this.template('service.yml.ejs', `${appOut}/${appName}-service.yml`);
                 // If we choose microservice with no DB, it is trying to move _no.yml as prodDatabaseType is getting tagged as 'string' type
                 if (this.app.prodDatabaseType !== 'no') {
-                    this.template(`db/_${this.app.prodDatabaseType}.yml`, `${appName}/${appName}-${this.app.prodDatabaseType}.yml`);
+                    this.template(`db/${this.app.prodDatabaseType}.yml.ejs`, `${appOut}/${appName}-${this.app.prodDatabaseType}.yml`);
                 }
                 if (this.app.searchEngine === 'elasticsearch') {
-                    this.template('db/_elasticsearch.yml', `${appName}/${appName}-elasticsearch.yml`);
+                    this.template('db/elasticsearch.yml.ejs', `${appOut}/${appName}-elasticsearch.yml`);
                 }
-                if (this.app.messageBroker === 'kafka') {
-                    this.template('db/_kafka.yml', `${appName}/${appName}-kafka.yml`);
+                if (this.app.applicationType === 'gateway' || this.app.applicationType === 'monolith') {
+                    if (this.istio) {
+                        this.template('istio/gateway.yml.ejs', `${appOut}/${appName}-gateway.yml`);
+                    } else if (this.kubernetesServiceType === 'Ingress') {
+                        this.template('ingress.yml.ejs', `${appOut}/${appName}-ingress.yml`);
+                    }
                 }
-                if ((this.app.applicationType === 'gateway' || this.app.applicationType === 'monolith') && this.kubernetesServiceType === 'Ingress') {
-                    this.template('_ingress.yml', `${appName}/${appName}-ingress.yml`);
+                if (!this.app.serviceDiscoveryType && this.app.authenticationType === 'jwt') {
+                    this.template('secret/jwt-secret.yml.ejs', `${appOut}/jwt-secret.yml`);
                 }
-                if (this.prometheusOperator) {
-                    this.template('_prometheus.yml', `${appName}/${appName}-prometheus.yml`);
+                if (this.monitoring === 'prometheus') {
+                    this.template('monitoring/jhipster-prometheus-sm.yml.ejs', `${appOut}/${appName}-prometheus-sm.yml`);
+                }
+                if (this.istio) {
+                    this.template('istio/destination-rule.yml.ejs', `${appOut}/${appName}-destination-rule.yml`);
+                    this.template('istio/virtual-service.yml.ejs', `${appOut}/${appName}-virtual-service.yml`);
                 }
             }
         },
 
         writeReadme() {
-            this.template('_README-KUBERNETES.md', 'README.md');
+            this.template('README-KUBERNETES.md.ejs', 'K8S-README.md');
         },
 
         writeNamespace() {
             if (this.kubernetesNamespace !== 'default') {
-                this.template('_namespace.yml', 'namespace.yml');
+                this.template('namespace.yml.ejs', 'namespace.yml');
             }
         },
 
-        writeJhipsterConsole() {
-            if (this.jhipsterConsole) {
-                this.template('console/_logstash-config.yml', 'console/logstash-config.yml');
-                this.template('console/_jhipster-elasticsearch.yml', 'console/jhipster-elasticsearch.yml');
-                this.template('console/_jhipster-logstash.yml', 'console/jhipster-logstash.yml');
-                this.template('console/_jhipster-console.yml', 'console/jhipster-console.yml');
-            }
+        writeMessagingBroker() {
+            if (!this.useKafka) return;
+            this.template('messagebroker/kafka.yml.ejs', `messagebroker-${suffix}/kafka.yml`);
         },
 
-        writePrometheusTpr() {
-            if (this.prometheusOperator) {
-                this.template('_prometheus-tpr.yml', 'prometheus-tpr.yml');
+        writePrometheusGrafanaFiles() {
+            const monitOut = 'monitoring'.concat('-', suffix);
+            if (this.monitoring === 'prometheus') {
+                this.template('monitoring/jhipster-prometheus-crd.yml.ejs', `${monitOut}/jhipster-prometheus-crd.yml`);
+                this.template('monitoring/jhipster-prometheus-cr.yml.ejs', `${monitOut}/jhipster-prometheus-cr.yml`);
+                this.template('monitoring/jhipster-grafana.yml.ejs', `${monitOut}/jhipster-grafana.yml`);
+                this.template('monitoring/jhipster-grafana-dashboard.yml.ejs', `${monitOut}/jhipster-grafana-dashboard.yml`);
+                if (this.istio) {
+                    this.template('istio/gateway/jhipster-grafana-gateway.yml.ejs', `${monitOut}/jhipster-grafana-gateway.yml`);
+                }
             }
         },
 
         writeRegistryFiles() {
+            const registryOut = 'registry'.concat('-', suffix);
             if (this.serviceDiscoveryType === 'eureka') {
-                this.template('registry/_jhipster-registry.yml', 'registry/jhipster-registry.yml');
-                this.template('registry/_application-configmap.yml', 'registry/application-configmap.yml');
+                this.template('registry/jhipster-registry.yml.ejs', `${registryOut}/jhipster-registry.yml`);
+                this.template('registry/application-configmap.yml.ejs', `${registryOut}/application-configmap.yml`);
             } else if (this.serviceDiscoveryType === 'consul') {
-                this.template('registry/_consul.yml', 'registry/consul.yml');
-                this.template('registry/_consul-config-loader.yml', 'registry/consul-config-loader.yml');
-                this.template('registry/_application-configmap.yml', 'registry/application-configmap.yml');
+                this.template('registry/consul.yml.ejs', `${registryOut}/consul.yml`);
+                this.template('registry/consul-config-loader.yml.ejs', `${registryOut}/consul-config-loader.yml`);
+                this.template('registry/application-configmap.yml.ejs', `${registryOut}/application-configmap.yml`);
             }
-        }
+        },
+
+        writeConfigRunFile() {
+            this.template('kubectl-apply.sh.ejs', 'kubectl-apply.sh');
+        },
+
+        writeObservabilityGatewayFiles() {
+            if (!this.istio) return;
+            const istioOut = 'istio'.concat('-', suffix);
+            this.template('istio/gateway/grafana-gateway.yml.ejs', `${istioOut}/grafana-gateway.yml`);
+            this.template('istio/gateway/zipkin-gateway.yml.ejs', `${istioOut}/zipkin-gateway.yml`);
+            this.template('istio/gateway/kiali-gateway.yml.ejs', `${istioOut}/kiali-gateway.yml`);
+        },
+
+        writeKustomize() {
+            const patchOut = 'patch'.concat('-', suffix);
+            this.template('kustomize/kustomization.yml.ejs', 'kustomization.yml');
+            if (this.istio) {
+                this.template('kustomize/patch/istio-label.yml.ejs', `${patchOut}/istio-label.yml`);
+                this.template('kustomize/patch/istio-namespace.yml.ejs', `${patchOut}/istio-namespace.yml`);
+            }
+        },
+
+        writeSkaffold() {
+            this.template('skaffold/skaffold.yml.ejs', 'skaffold.yml');
+        },
     };
 }

@@ -1,14 +1,33 @@
+/**
+ * Copyright 2013-2020 the original author or authors from the JHipster project.
+ *
+ * This file is part of the JHipster project, see https://www.jhipster.tech/
+ * for more information.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 let aws;
 let uuidV4;
 
-const Eb = module.exports = function Eb(Aws, generator) {
+const Eb = (module.exports = function Eb(Aws, generator) {
     aws = Aws;
     try {
-        uuidV4 = require('uuid/v4'); // eslint-disable-line
+        const { v4 } = require('uuid'); // eslint-disable-line
+        uuidV4 = v4;
     } catch (e) {
         generator.error(`Something went wrong while running jhipster:aws:\n${e}`);
     }
-};
+});
 
 Eb.prototype.createApplication = function createApplication(params, callback) {
     const applicationName = params.applicationName;
@@ -25,10 +44,10 @@ Eb.prototype.createApplication = function createApplication(params, callback) {
         applicationName,
         versionLabel,
         bucketName,
-        warKey
+        warKey,
     };
 
-    createApplicationVersion(applicationParams, (err) => {
+    createApplicationVersion(applicationParams, err => {
         if (err) {
             callback({ message: err.message }, null);
         } else {
@@ -39,7 +58,7 @@ Eb.prototype.createApplication = function createApplication(params, callback) {
                 dbUrl,
                 dbUsername,
                 dbPassword,
-                instanceType
+                instanceType,
             };
 
             checkEnvironment(environmentParams, (err, data) => {
@@ -81,15 +100,15 @@ function createApplicationVersion(params, callback) {
         AutoCreateApplication: true,
         SourceBundle: {
             S3Bucket: bucketName,
-            S3Key: warKey
-        }
+            S3Key: warKey,
+        },
     };
 
-    elasticbeanstalk.createApplicationVersion(applicationParams, (err) => {
+    elasticbeanstalk.createApplicationVersion(applicationParams, err => {
         if (err) {
             callback(err, null);
         } else {
-            callback(null, { message: `Application version ${applicationName} created successful` });
+            callback(null, { message: `Application version ${applicationName} created successfully` });
         }
     });
 }
@@ -102,7 +121,7 @@ function checkEnvironment(params, callback) {
 
     const environmentParams = {
         ApplicationName: applicationName,
-        EnvironmentNames: [environmentName]
+        EnvironmentNames: [environmentName],
     };
 
     elasticbeanstalk.describeEnvironments(environmentParams, (err, data) => {
@@ -138,45 +157,45 @@ function createEnvironment(params, callback) {
                 {
                     Namespace: 'aws:elasticbeanstalk:application:environment',
                     OptionName: 'spring.profiles.active',
-                    Value: 'prod'
+                    Value: 'prod',
                 },
                 {
                     Namespace: 'aws:elasticbeanstalk:application:environment',
                     OptionName: 'spring.datasource.url',
-                    Value: dbUrl
+                    Value: dbUrl,
                 },
                 {
                     Namespace: 'aws:elasticbeanstalk:application:environment',
                     OptionName: 'spring.datasource.username',
-                    Value: dbUsername
+                    Value: dbUsername,
                 },
                 {
                     Namespace: 'aws:elasticbeanstalk:application:environment',
                     OptionName: 'spring.datasource.password',
-                    Value: dbPassword
+                    Value: dbPassword,
                 },
                 {
                     Namespace: 'aws:autoscaling:launchconfiguration',
                     OptionName: 'InstanceType',
-                    Value: instanceType
+                    Value: instanceType,
                 },
                 {
                     Namespace: 'aws:autoscaling:launchconfiguration',
                     OptionName: 'IamInstanceProfile',
-                    Value: 'aws-elasticbeanstalk-ec2-role'
-                }
+                    Value: 'aws-elasticbeanstalk-ec2-role',
+                },
             ],
             SolutionStackName: solutionStackName,
             VersionLabel: versionLabel,
             Tier: {
                 Name: 'WebServer',
-                Type: 'Standard'
-            }
+                Type: 'Standard',
+            },
         };
 
-        elasticbeanstalk.createEnvironment(environmentParams, (err) => {
+        elasticbeanstalk.createEnvironment(environmentParams, err => {
             if (err) callback(err, null);
-            else callback(null, { message: `Environment ${environmentName} created successful` });
+            else callback(null, { message: `Environment ${environmentName} created successfully` });
         });
     });
 }
@@ -195,7 +214,7 @@ function getLatestSolutionStackName(callback) {
     }
 
     function filterCriteria(element) {
-        return element.indexOf('Tomcat 8') > -1;
+        return element.includes('Tomcat 8');
     }
 }
 
@@ -212,13 +231,13 @@ function updateEnvironment(params, callback) {
             {
                 Namespace: 'aws:autoscaling:launchconfiguration',
                 OptionName: 'InstanceType',
-                Value: instanceType
-            }
+                Value: instanceType,
+            },
         ],
-        VersionLabel: versionLabel
+        VersionLabel: versionLabel,
     };
 
-    elasticbeanstalk.updateEnvironment(environmentParams, (err) => {
+    elasticbeanstalk.updateEnvironment(environmentParams, err => {
         if (err) {
             callback(err, null);
         } else {

@@ -1,7 +1,7 @@
 /**
- * Copyright 2013-2017 the original author or authors from the JHipster project.
+ * Copyright 2013-2020 the original author or authors from the JHipster project.
  *
- * This file is part of the JHipster project, see https://jhipster.github.io/
+ * This file is part of the JHipster project, see https://www.jhipster.tech/
  * for more information.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,434 +16,577 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-const util = require('util');
-const generator = require('yeoman-generator');
+/* eslint-disable consistent-return */
 const chalk = require('chalk');
 const _ = require('lodash');
+const os = require('os');
 const prompts = require('./prompts');
-const BaseGenerator = require('../generator-base');
+const BaseBlueprintGenerator = require('../generator-base-blueprint');
 const writeFiles = require('./files').writeFiles;
 const packagejs = require('../../package.json');
-const crypto = require('crypto');
-const os = require('os');
 const constants = require('../generator-constants');
+const statistics = require('../statistics');
+const { getBase64Secret, getRandomHex } = require('../utils');
+const { defaultConfig } = require('../generator-defaults');
 
-const JhipsterServerGenerator = generator.extend({});
+let useBlueprints;
 
-util.inherits(JhipsterServerGenerator, BaseGenerator);
+module.exports = class JHipsterServerGenerator extends BaseBlueprintGenerator {
+    constructor(args, opts) {
+        super(args, opts);
 
-/* Constants used throughout */
-const QUESTIONS = constants.SERVER_QUESTIONS;
-
-module.exports = JhipsterServerGenerator.extend({
-    constructor: function (...args) { // eslint-disable-line object-shorthand
-        generator.apply(this, args);
-
-        this.configOptions = this.options.configOptions || {};
-
-        // This adds support for a `--[no-]client-hook` flag
-        this.option('client-hook', {
-            desc: 'Enable gulp and bower hook from maven/gradle build',
+        // This adds support for a `--from-cli` flag
+        this.option('from-cli', {
+            desc: 'Indicates the command is run from JHipster CLI',
             type: Boolean,
-            defaults: false
+            defaults: false,
         });
 
-        // This adds support for a `--[no-]i18n` flag
-        this.option('i18n', {
-            desc: 'Disable or enable i18n when skipping client side generation, has no effect otherwise',
+        // This adds support for a `--experimental` flag which can be used to enable experimental features
+        this.option('experimental', {
+            desc:
+                'Enable experimental features. Please note that these features may be unstable and may undergo breaking changes at any time',
             type: Boolean,
-            defaults: true
         });
 
-        // This adds support for a `--protractor` flag
-        this.option('protractor', {
-            desc: 'Enable protractor tests',
-            type: Boolean,
-            defaults: false
-        });
-
-        // This adds support for a `--cucumber` flag
-        this.option('cucumber', {
-            desc: 'Enable cucumber tests',
-            type: Boolean,
-            defaults: false
-        });
-
-        // This adds support for a `--skip-user-management` flag
-        this.option('skip-user-management', {
-            desc: 'Skip the user management module during app generation',
-            type: Boolean,
-            defaults: false
-        });
-
-        this.skipClient = !this.options['client-hook'] || this.configOptions.skipClient || this.config.get('skipClient');
-        this.skipUserManagement = this.configOptions.skipUserManagement || this.options['skip-user-management'] || this.config.get('skipUserManagement');
-        this.enableTranslation = this.options.i18n || this.configOptions.enableTranslation || this.config.get('enableTranslation');
-        this.testFrameworks = [];
-
-        if (this.options.gatling) this.testFrameworks.push('gatling');
-        if (this.options.cucumber) this.testFrameworks.push('cucumber');
-
-        this.currentQuestion = this.configOptions.lastQuestion ? this.configOptions.lastQuestion : 0;
-        this.totalQuestions = this.configOptions.totalQuestions ? this.configOptions.totalQuestions : QUESTIONS;
-        this.logo = this.configOptions.logo;
-        this.baseName = this.configOptions.baseName;
-        this.clientPackageManager = this.configOptions.clientPackageManager;
-        this.isDebugEnabled = this.configOptions.isDebugEnabled || this.options.debug;
-    },
-    initializing: {
-        displayLogo() {
-            if (this.logo) {
-                this.printJHipsterLogo();
-            }
-        },
-
-        setupServerconsts() {
-            // Make constants available in templates
-            this.MAIN_DIR = constants.MAIN_DIR;
-            this.TEST_DIR = constants.TEST_DIR;
-            this.CLIENT_MAIN_SRC_DIR = constants.CLIENT_MAIN_SRC_DIR;
-            this.CLIENT_TEST_SRC_DIR = constants.CLIENT_TEST_SRC_DIR;
-            this.SERVER_MAIN_SRC_DIR = constants.SERVER_MAIN_SRC_DIR;
-            this.SERVER_MAIN_RES_DIR = constants.SERVER_MAIN_RES_DIR;
-            this.SERVER_TEST_SRC_DIR = constants.SERVER_TEST_SRC_DIR;
-            this.SERVER_TEST_RES_DIR = constants.SERVER_TEST_RES_DIR;
-
-            this.DOCKER_JHIPSTER_REGISTRY = constants.DOCKER_JHIPSTER_REGISTRY;
-            this.DOCKER_JAVA_JRE = constants.DOCKER_JAVA_JRE;
-            this.DOCKER_MYSQL = constants.DOCKER_MYSQL;
-            this.DOCKER_MARIADB = constants.DOCKER_MARIADB;
-            this.DOCKER_POSTGRESQL = constants.DOCKER_POSTGRESQL;
-            this.DOCKER_MONGODB = constants.DOCKER_MONGODB;
-            this.DOCKER_MSSQL = constants.DOCKER_MSSQL;
-            this.DOCKER_ORACLE = constants.DOCKER_ORACLE;
-            this.DOCKER_CASSANDRA = constants.DOCKER_CASSANDRA;
-            this.DOCKER_ELASTICSEARCH = constants.DOCKER_ELASTICSEARCH;
-            this.DOCKER_KAFKA = constants.DOCKER_KAFKA;
-            this.DOCKER_ZOOKEEPER = constants.DOCKER_ZOOKEEPER;
-            this.DOCKER_SONAR = constants.DOCKER_SONAR;
-            this.DOCKER_JHIPSTER_CONSOLE = constants.DOCKER_JHIPSTER_CONSOLE;
-            this.DOCKER_JHIPSTER_ELASTICSEARCH = constants.DOCKER_JHIPSTER_ELASTICSEARCH;
-            this.DOCKER_JHIPSTER_LOGSTASH = constants.DOCKER_JHIPSTER_LOGSTASH;
-            this.DOCKER_CONSUL = constants.DOCKER_CONSUL;
-            this.DOCKER_CONSUL_CONFIG_LOADER = constants.DOCKER_CONSUL_CONFIG_LOADER;
-
-            this.NODE_VERSION = constants.NODE_VERSION;
-            this.YARN_VERSION = constants.YARN_VERSION;
-            this.NPM_VERSION = constants.NPM_VERSION;
-
-            this.javaVersion = '8'; // Java version is forced to be 1.8. We keep the variable as it might be useful in the future.
-            this.packagejs = packagejs;
-            this.applicationType = this.config.get('applicationType') || this.configOptions.applicationType;
-            if (!this.applicationType) {
-                this.applicationType = 'monolith';
-            }
-
-            this.packageName = this.config.get('packageName');
-            this.serverPort = this.config.get('serverPort');
-            if (this.serverPort === undefined) {
-                this.serverPort = '8080';
-            }
-            this.websocket = this.config.get('websocket') === 'no' ? false : this.config.get('websocket');
-            this.searchEngine = this.config.get('searchEngine') === 'no' ? false : this.config.get('searchEngine');
-            if (this.searchEngine === undefined) {
-                this.searchEngine = false;
-            }
-            this.messageBroker = this.config.get('messageBroker') === 'no' ? false : this.config.get('messageBroker');
-            if (this.messageBroker === undefined) {
-                this.messageBroker = false;
-            }
-
-            this.serviceDiscoveryType = this.config.get('serviceDiscoveryType') === 'no' ? false : this.config.get('serviceDiscoveryType');
-            if (this.serviceDiscoveryType === undefined) {
-                this.serviceDiscoveryType = false;
-            }
-
-            this.databaseType = this.config.get('databaseType');
-            if (this.databaseType === 'mongodb') {
-                this.devDatabaseType = 'mongodb';
-                this.prodDatabaseType = 'mongodb';
-                this.hibernateCache = 'no';
-            } else if (this.databaseType === 'cassandra') {
-                this.devDatabaseType = 'cassandra';
-                this.prodDatabaseType = 'cassandra';
-                this.hibernateCache = 'no';
-            } else if (this.databaseType === 'no') {
-                // no database, only available for microservice applications
-                this.devDatabaseType = 'no';
-                this.prodDatabaseType = 'no';
-                this.hibernateCache = 'no';
-            } else {
-                // sql
-                this.devDatabaseType = this.config.get('devDatabaseType');
-                this.prodDatabaseType = this.config.get('prodDatabaseType');
-                this.hibernateCache = this.config.get('hibernateCache');
-            }
-            if (this.hibernateCache === undefined) {
-                this.hibernateCache = 'no';
-            }
-            // Hazelcast is mandatory for Gateways, as it is used for rate limiting
-            if (this.applicationType === 'gateway') {
-                this.hibernateCache = 'hazelcast';
-            }
-            this.clusteredHttpSession = this.config.get('clusteredHttpSession') === 'no' ? false : this.config.get('clusteredHttpSession');
-            if (this.hibernateCache === 'ehcache') {
-                this.clusteredHttpSession = false; // cannot use HazelCast clusering AND ehcache
-            }
-            this.buildTool = this.config.get('buildTool');
-            this.enableSocialSignIn = this.config.get('enableSocialSignIn');
-            this.jhipsterVersion = packagejs.version;
-            if (this.jhipsterVersion === undefined) {
-                this.jhipsterVersion = this.config.get('jhipsterVersion');
-            }
-            this.authenticationType = this.config.get('authenticationType');
-            // JWT authentication is mandatory with Eureka, so the JHipster Registry
-            // can control the applications
-            if (this.serviceDiscoveryType === 'eureka' && this.authenticationType !== 'uaa') {
-                this.authenticationType = 'jwt';
-            }
-            if (this.authenticationType === 'session') {
-                this.rememberMeKey = this.config.get('rememberMeKey');
-            }
-            this.jwtSecretKey = this.config.get('jwtSecretKey');
-            this.nativeLanguage = this.config.get('nativeLanguage');
-            this.languages = this.config.get('languages');
-            this.uaaBaseName = this.config.get('uaaBaseName');
-            this.clientFramework = this.config.get('clientFramework');
-            const testFrameworks = this.config.get('testFrameworks');
-            if (testFrameworks) {
-                this.testFrameworks = testFrameworks;
-            }
-
-            const baseName = this.config.get('baseName');
-            if (baseName) {
-                // to avoid overriding name from configOptions
-                this.baseName = baseName;
-            }
-
-            // force constiables unused by microservice applications
-            if (this.applicationType === 'microservice' || this.applicationType === 'uaa') {
-                this.clusteredHttpSession = false;
-                this.websocket = false;
-            }
-
-            const serverConfigFound = this.packageName !== undefined &&
-                this.authenticationType !== undefined &&
-                this.hibernateCache !== undefined &&
-                this.clusteredHttpSession !== undefined &&
-                this.websocket !== undefined &&
-                this.databaseType !== undefined &&
-                this.devDatabaseType !== undefined &&
-                this.prodDatabaseType !== undefined &&
-                this.searchEngine !== undefined &&
-                this.buildTool !== undefined;
-
-            if (this.baseName !== undefined && serverConfigFound) {
-                // Generate remember me key if key does not already exist in config
-                if (this.authenticationType === 'session' && this.rememberMeKey === undefined) {
-                    this.rememberMeKey = crypto.randomBytes(20).toString('hex');
-                }
-
-                // Generate JWT secret key if key does not already exist in config
-                if (this.authenticationType === 'jwt' && this.jwtSecretKey === undefined) {
-                    this.jwtSecretKey = crypto.randomBytes(20).toString('hex');
-                }
-
-                // If social sign in is not defined, it is disabled by default
-                if (this.enableSocialSignIn === undefined) {
-                    this.enableSocialSignIn = false;
-                }
-
-                // If the service discovery is not defined, it is disabled by default
-                if (this.serviceDiscoveryType === undefined) {
-                    this.serviceDiscoveryType = false;
-                }
-
-                // If translation is not defined, it is enabled by default
-                if (this.enableTranslation === undefined) {
-                    this.enableTranslation = true;
-                }
-                if (this.nativeLanguage === undefined) {
-                    this.nativeLanguage = 'en';
-                }
-                if (this.languages === undefined) {
-                    this.languages = ['en', 'fr'];
-                }
-                // user-management will be handled by UAA app
-                if (this.applicationType === 'gateway' && this.authenticationType === 'uaa') {
-                    this.skipUserManagement = true;
-                }
-
-                this.log(chalk.green('This is an existing project, using the configuration from your .yo-rc.json file \n' +
-                    'to re-generate the project...\n'));
-
-                this.existingProject = true;
-            }
+        if (this.options.help) {
+            return;
         }
-    },
 
-    prompting: {
+        this.loadStoredAppOptions();
+        this.loadRuntimeOptions();
 
-        askForModuleName: prompts.askForModuleName,
-        askForServerSideOpts: prompts.askForServerSideOpts,
-        askForOptionalItems: prompts.askForOptionalItems,
-        askFori18n: prompts.askFori18n,
+        // preserve old jhipsterVersion value for cleanup which occurs after new config is written into disk
+        this.jhipsterOldVersion = this.jhipsterConfig.jhipsterVersion;
 
-        setSharedConfigOptions() {
-            this.configOptions.lastQuestion = this.currentQuestion;
-            this.configOptions.totalQuestions = this.totalQuestions;
-            this.configOptions.packageName = this.packageName;
-            this.configOptions.hibernateCache = this.hibernateCache;
-            this.configOptions.clusteredHttpSession = this.clusteredHttpSession;
-            this.configOptions.websocket = this.websocket;
-            this.configOptions.databaseType = this.databaseType;
-            this.configOptions.devDatabaseType = this.devDatabaseType;
-            this.configOptions.prodDatabaseType = this.prodDatabaseType;
-            this.configOptions.searchEngine = this.searchEngine;
-            this.configOptions.messageBroker = this.messageBroker;
-            this.configOptions.serviceDiscoveryType = this.serviceDiscoveryType;
-            this.configOptions.buildTool = this.buildTool;
-            this.configOptions.enableSocialSignIn = this.enableSocialSignIn;
-            this.configOptions.authenticationType = this.authenticationType;
-            this.configOptions.uaaBaseName = this.uaaBaseName;
-            this.configOptions.serverPort = this.serverPort;
+        useBlueprints = !this.fromBlueprint && this.instantiateBlueprints('server');
 
-            // Make dist dir available in templates
-            if (this.buildTool === 'maven') {
-                this.BUILD_DIR = 'target/';
-            } else {
-                this.BUILD_DIR = 'build/';
-            }
-            this.CLIENT_DIST_DIR = this.BUILD_DIR + constants.CLIENT_DIST_DIR;
-            // Make documentation URL available in templates
-            this.DOCUMENTATION_URL = constants.JHIPSTER_DOCUMENTATION_URL;
-            this.DOCUMENTATION_ARCHIVE_URL = `${constants.JHIPSTER_DOCUMENTATION_URL + constants.JHIPSTER_DOCUMENTATION_ARCHIVE_PATH}v${this.jhipsterVersion}`;
-        }
-    },
-
-    configuring: {
-        insight() {
-            const insight = this.insight();
-            insight.trackWithEvent('generator', 'server');
-            insight.track('app/authenticationType', this.authenticationType);
-            insight.track('app/hibernateCache', this.hibernateCache);
-            insight.track('app/clusteredHttpSession', this.clusteredHttpSession);
-            insight.track('app/websocket', this.websocket);
-            insight.track('app/databaseType', this.databaseType);
-            insight.track('app/devDatabaseType', this.devDatabaseType);
-            insight.track('app/prodDatabaseType', this.prodDatabaseType);
-            insight.track('app/searchEngine', this.searchEngine);
-            insight.track('app/messageBroker', this.messageBroker);
-            insight.track('app/serviceDiscoveryType', this.serviceDiscoveryType);
-            insight.track('app/buildTool', this.buildTool);
-            insight.track('app/enableSocialSignIn', this.enableSocialSignIn);
-        },
-
-        configureGlobal() {
-            // Application name modified, using each technology's conventions
-            this.angularAppName = this.getAngularAppName();
-            this.camelizedBaseName = _.camelCase(this.baseName);
-            this.dasherizedBaseName = _.kebabCase(this.baseName);
-            this.lowercaseBaseName = this.baseName.toLowerCase();
-            this.humanizedBaseName = _.startCase(this.baseName);
-            this.mainClass = this.getMainClassName();
-
-            if (this.databaseType === 'cassandra' || this.databaseType === 'mongodb') {
-                this.pkType = 'String';
-            } else {
-                this.pkType = 'Long';
-            }
-
-            this.packageFolder = this.packageName.replace(/\./g, '/');
-            this.testDir = `${constants.SERVER_TEST_SRC_DIR + this.packageFolder}/`;
-            if (!this.nativeLanguage) {
-                // set to english when translation is set to false
-                this.nativeLanguage = 'en';
-            }
-        },
-
-        saveConfig() {
-            this.config.set('jhipsterVersion', packagejs.version);
-            this.config.set('baseName', this.baseName);
-            this.config.set('packageName', this.packageName);
-            this.config.set('packageFolder', this.packageFolder);
-            this.config.set('serverPort', this.serverPort);
-            this.config.set('authenticationType', this.authenticationType);
-            this.config.set('uaaBaseName', this.uaaBaseName);
-            this.config.set('hibernateCache', this.hibernateCache);
-            this.config.set('clusteredHttpSession', this.clusteredHttpSession);
-            this.config.set('websocket', this.websocket);
-            this.config.set('databaseType', this.databaseType);
-            this.config.set('devDatabaseType', this.devDatabaseType);
-            this.config.set('prodDatabaseType', this.prodDatabaseType);
-            this.config.set('searchEngine', this.searchEngine);
-            this.config.set('messageBroker', this.messageBroker);
-            this.config.set('serviceDiscoveryType', this.serviceDiscoveryType);
-            this.config.set('buildTool', this.buildTool);
-            this.config.set('enableSocialSignIn', this.enableSocialSignIn);
-            this.config.set('jwtSecretKey', this.jwtSecretKey);
-            this.config.set('rememberMeKey', this.rememberMeKey);
-            this.config.set('enableTranslation', this.enableTranslation);
-            if (this.enableTranslation && !this.configOptions.skipI18nQuestion) {
-                this.config.set('nativeLanguage', this.nativeLanguage);
-                this.config.set('languages', this.languages);
-            }
-        }
-    },
-
-    default: {
-        getSharedConfigOptions() {
-            this.useSass = this.configOptions.useSass ? this.configOptions.useSass : false;
-            if (this.configOptions.enableTranslation !== undefined) {
-                this.enableTranslation = this.configOptions.enableTranslation;
-            }
-            if (this.configOptions.nativeLanguage !== undefined) {
-                this.nativeLanguage = this.configOptions.nativeLanguage;
-            }
-            if (this.configOptions.languages !== undefined) {
-                this.languages = this.configOptions.languages;
-            }
-            if (this.configOptions.testFrameworks) {
-                this.testFrameworks = this.configOptions.testFrameworks;
-            }
-            if (this.configOptions.clientFramework) {
-                this.clientFramework = this.configOptions.clientFramework;
-            }
-            this.protractorTests = this.testFrameworks.indexOf('protractor') !== -1;
-            this.gatlingTests = this.testFrameworks.indexOf('gatling') !== -1;
-            this.cucumberTests = this.testFrameworks.indexOf('cucumber') !== -1;
-        },
-
-        composeLanguages() {
-            if (this.configOptions.skipI18nQuestion) return;
-
-            this.composeLanguagesSub(this, this.configOptions, 'server');
-        }
-    },
-
-    writing: writeFiles(),
-
-    end() {
-        if (this.prodDatabaseType === 'oracle') {
-            this.log('\n\n');
-            this.warning(
-                `${chalk.yellow.bold('You have selected Oracle database.\n')
-                }Please follow our documentation on using Oracle to set up the \n` +
-                'Oracle proprietary JDBC driver.'
-            );
-        }
-        this.log(chalk.green.bold('\nServer application generated successfully.\n'));
-
-        let executable = 'mvnw';
-        if (this.buildTool === 'gradle') {
-            executable = 'gradlew';
-        }
-        let logMsgComment = '';
-        if (os.platform() === 'win32') {
-            logMsgComment = ` (${chalk.yellow.bold(executable)} if using Windows Command Prompt)`;
-        }
-        this.log(chalk.green(`${'Run your Spring Boot application:' +
-            '\n '}${chalk.yellow.bold(`./${executable}`)}${logMsgComment}`));
+        this.registerPrettierTransform();
     }
 
-});
+    // Public API method used by the getter and also by Blueprints
+    _initializing() {
+        return {
+            validateFromCli() {
+                this.checkInvocationFromCLI();
+            },
+
+            displayLogo() {
+                if (this.logo) {
+                    this.printJHipsterLogo();
+                }
+            },
+
+            setupServerconsts() {
+                // Make constants available in templates
+                this.MAIN_DIR = constants.MAIN_DIR;
+                this.TEST_DIR = constants.TEST_DIR;
+                this.DOCKER_DIR = constants.DOCKER_DIR;
+                this.LOGIN_REGEX = constants.LOGIN_REGEX;
+                this.CLIENT_WEBPACK_DIR = constants.CLIENT_WEBPACK_DIR;
+                this.SERVER_MAIN_SRC_DIR = constants.SERVER_MAIN_SRC_DIR;
+                this.SERVER_MAIN_RES_DIR = constants.SERVER_MAIN_RES_DIR;
+                this.SERVER_TEST_SRC_DIR = constants.SERVER_TEST_SRC_DIR;
+                this.SERVER_TEST_RES_DIR = constants.SERVER_TEST_RES_DIR;
+
+                this.HUSKY_VERSION = constants.HUSKY_VERSION;
+                this.LINT_STAGED_VERSION = constants.LINT_STAGED_VERSION;
+                this.PRETTIER_VERSION = constants.PRETTIER_VERSION;
+                this.PRETTIER_JAVA_VERSION = constants.PRETTIER_JAVA_VERSION;
+
+                this.DOCKER_JHIPSTER_REGISTRY = constants.DOCKER_JHIPSTER_REGISTRY;
+                this.DOCKER_JHIPSTER_CONTROL_CENTER = constants.DOCKER_JHIPSTER_CONTROL_CENTER;
+                this.DOCKER_JAVA_JRE = constants.DOCKER_JAVA_JRE;
+                this.DOCKER_MYSQL = constants.DOCKER_MYSQL;
+                this.DOCKER_MARIADB = constants.DOCKER_MARIADB;
+                this.DOCKER_POSTGRESQL = constants.DOCKER_POSTGRESQL;
+                this.DOCKER_MONGODB = constants.DOCKER_MONGODB;
+                this.DOCKER_COUCHBASE = constants.DOCKER_COUCHBASE;
+                this.DOCKER_MSSQL = constants.DOCKER_MSSQL;
+                this.DOCKER_NEO4J = constants.DOCKER_NEO4J;
+                this.DOCKER_HAZELCAST_MANAGEMENT_CENTER = constants.DOCKER_HAZELCAST_MANAGEMENT_CENTER;
+                this.DOCKER_MEMCACHED = constants.DOCKER_MEMCACHED;
+                this.DOCKER_REDIS = constants.DOCKER_REDIS;
+                this.DOCKER_CASSANDRA = constants.DOCKER_CASSANDRA;
+                this.DOCKER_ELASTICSEARCH = constants.DOCKER_ELASTICSEARCH;
+                this.DOCKER_KEYCLOAK = constants.DOCKER_KEYCLOAK;
+                this.DOCKER_KAFKA = constants.DOCKER_KAFKA;
+                this.DOCKER_ZOOKEEPER = constants.DOCKER_ZOOKEEPER;
+                this.DOCKER_SONAR = constants.DOCKER_SONAR;
+                this.DOCKER_TRAEFIK = constants.DOCKER_TRAEFIK;
+                this.DOCKER_CONSUL = constants.DOCKER_CONSUL;
+                this.DOCKER_CONSUL_CONFIG_LOADER = constants.DOCKER_CONSUL_CONFIG_LOADER;
+                this.DOCKER_SWAGGER_EDITOR = constants.DOCKER_SWAGGER_EDITOR;
+                this.DOCKER_PROMETHEUS = constants.DOCKER_PROMETHEUS;
+                this.DOCKER_GRAFANA = constants.DOCKER_GRAFANA;
+                this.DOCKER_COMPOSE_FORMAT_VERSION = constants.DOCKER_COMPOSE_FORMAT_VERSION;
+
+                this.JAVA_VERSION = constants.JAVA_VERSION;
+
+                this.NODE_VERSION = constants.NODE_VERSION;
+                this.NPM_VERSION = constants.NPM_VERSION;
+                this.GRADLE_VERSION = constants.GRADLE_VERSION;
+
+                this.JIB_VERSION = constants.JIB_VERSION;
+                this.JHIPSTER_DEPENDENCIES_VERSION = constants.JHIPSTER_DEPENDENCIES_VERSION;
+                this.SPRING_BOOT_VERSION = constants.SPRING_BOOT_VERSION;
+                this.LIQUIBASE_VERSION = constants.LIQUIBASE_VERSION;
+                this.LIQUIBASE_DTD_VERSION = constants.LIQUIBASE_DTD_VERSION;
+                this.HIBERNATE_VERSION = constants.HIBERNATE_VERSION;
+                this.JACOCO_VERSION = constants.JACOCO_VERSION;
+
+                this.KAFKA_VERSION = constants.KAFKA_VERSION;
+
+                this.JACKSON_DATABIND_NULLABLE_VERSION = constants.JACKSON_DATABIND_NULLABLE_VERSION;
+
+                this.packagejs = packagejs;
+            },
+
+            setupRequiredConfig() {
+                if (!this.jhipsterConfig.applicationType) {
+                    this.jhipsterConfig.applicationType = defaultConfig.applicationType;
+                }
+            },
+
+            verifyExistingProject() {
+                const serverConfigFound =
+                    this.jhipsterConfig.packageName !== undefined &&
+                    this.jhipsterConfig.authenticationType !== undefined &&
+                    this.jhipsterConfig.cacheProvider !== undefined &&
+                    this.jhipsterConfig.websocket !== undefined &&
+                    this.jhipsterConfig.databaseType !== undefined &&
+                    this.jhipsterConfig.devDatabaseType !== undefined &&
+                    this.jhipsterConfig.prodDatabaseType !== undefined &&
+                    this.jhipsterConfig.searchEngine !== undefined &&
+                    this.jhipsterConfig.buildTool !== undefined;
+
+                if (this.jhipsterConfig.baseName !== undefined && serverConfigFound) {
+                    this.log(
+                        chalk.green(
+                            'This is an existing project, using the configuration from your .yo-rc.json file \n' +
+                                'to re-generate the project...\n'
+                        )
+                    );
+
+                    this.existingProject = true;
+                }
+            },
+        };
+    }
+
+    get initializing() {
+        if (useBlueprints) return;
+        return this._initializing();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _prompting() {
+        return {
+            askForModuleName: prompts.askForModuleName,
+            askForServerSideOpts: prompts.askForServerSideOpts,
+            askForOptionalItems: prompts.askForOptionalItems,
+
+            setSharedConfigOptions() {
+                // Make dist dir available in templates
+                this.BUILD_DIR = this.getBuildDirectoryForBuildTool(this.jhipsterConfig.buildTool);
+                this.CLIENT_DIST_DIR =
+                    this.getResourceBuildDirectoryForBuildTool(this.jhipsterConfig.buildTool) + constants.CLIENT_DIST_DIR;
+            },
+        };
+    }
+
+    get prompting() {
+        if (useBlueprints) return;
+        return this._prompting();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _configuring() {
+        return {
+            validateConfig() {
+                this._validateServerConfiguration();
+            },
+        };
+    }
+
+    get configuring() {
+        if (useBlueprints) return;
+        return this._configuring();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _composing() {
+        return {
+            composeLanguages() {
+                // We don't expose client/server to cli, composing with languages is used for test purposes.
+                if (this.jhipsterConfig.enableTranslation === false) return;
+                this.composeWithJHipster('languages', true);
+            },
+        };
+    }
+
+    get composing() {
+        if (useBlueprints) return;
+        return this._composing();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _loading() {
+        return {
+            loadSharedConfig() {
+                this.loadAppConfig();
+                this.loadClientConfig();
+                this.loadServerConfig();
+                this.loadTranslationConfig();
+            },
+        };
+    }
+
+    get loading() {
+        if (useBlueprints) return;
+        return this._loading();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _preparing() {
+        return {
+            prepareForTemplates() {
+                // Application name modified, using each technology's conventions
+                this.frontendAppName = this.getFrontendAppName();
+                this.camelizedBaseName = _.camelCase(this.baseName);
+                this.dasherizedBaseName = _.kebabCase(this.baseName);
+                this.lowercaseBaseName = this.baseName.toLowerCase();
+                this.humanizedBaseName = _.startCase(this.baseName);
+                this.mainClass = this.getMainClassName();
+                this.cacheManagerIsAvailable = ['ehcache', 'caffeine', 'hazelcast', 'infinispan', 'memcached', 'redis'].includes(
+                    this.cacheProvider
+                );
+                this.testsNeedCsrf = ['uaa', 'oauth2', 'session'].includes(this.authenticationType);
+                this.pkType = this.getPkType(this.databaseType);
+
+                this.jhiTablePrefix = this.getTableName(this.jhiPrefix);
+
+                if (this.jhipsterConfig.databaseType === 'sql') {
+                    // sql
+                    let dbContainer;
+                    switch (this.jhipsterConfig.prodDatabaseType) {
+                        case 'mysql':
+                            dbContainer = this.DOCKER_MYSQL;
+                            break;
+                        case 'mariadb':
+                            dbContainer = this.DOCKER_MARIADB;
+                            break;
+                        case 'postgresql':
+                            dbContainer = this.DOCKER_POSTGRESQL;
+                            break;
+                        case 'mssql':
+                            dbContainer = this.DOCKER_MSSQL;
+                            break;
+                        case 'oracle':
+                        default:
+                            dbContainer = null;
+                    }
+                    if (dbContainer != null && dbContainer.includes(':')) {
+                        this.containerVersion = dbContainer.split(':')[1];
+                    } else {
+                        this.containerVersion = 'latest';
+                    }
+                }
+            },
+        };
+    }
+
+    get preparing() {
+        if (useBlueprints) return;
+        return this._preparing();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _default() {
+        return {
+            ...super._missingPreDefault(),
+
+            insight() {
+                statistics.sendSubGenEvent('generator', 'server', {
+                    app: {
+                        authenticationType: this.authenticationType,
+                        cacheProvider: this.cacheProvider,
+                        enableHibernateCache: this.enableHibernateCache,
+                        websocket: this.websocket,
+                        databaseType: this.databaseType,
+                        devDatabaseType: this.devDatabaseType,
+                        prodDatabaseType: this.prodDatabaseType,
+                        searchEngine: this.searchEngine,
+                        messageBroker: this.messageBroker,
+                        serviceDiscoveryType: this.serviceDiscoveryType,
+                        buildTool: this.buildTool,
+                        enableSwaggerCodegen: this.enableSwaggerCodegen,
+                    },
+                });
+            },
+        };
+    }
+
+    get default() {
+        if (useBlueprints) return;
+        return this._default();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _writing() {
+        return { ...writeFiles(), ...super._missingPostWriting() };
+    }
+
+    get writing() {
+        if (useBlueprints) return;
+        return this._writing();
+    }
+
+    _postWriting() {
+        return {
+            packageJsonScripts() {
+                const packageJsonStorage = this.createStorage('package.json');
+                const packageJsonConfigStorage = packageJsonStorage.createStorage('config').createProxy();
+                packageJsonConfigStorage.backend_port = this.serverPort;
+                packageJsonConfigStorage.packaging = process.env.JHI_WAR === '1' ? 'war' : 'jar';
+                if (process.env.JHI_PROFILE) {
+                    packageJsonConfigStorage.default_environment = process.env.JHI_PROFILE.includes('dev') ? 'dev' : 'prod';
+                }
+            },
+            packageJsonDockerScripts() {
+                const packageJsonStorage = this.createStorage('package.json');
+                const scriptsStorage = packageJsonStorage.createStorage('scripts');
+                const databaseType = this.jhipsterConfig.databaseType;
+                if (databaseType === 'sql') {
+                    const prodDatabaseType = this.jhipsterConfig.prodDatabaseType;
+                    if (prodDatabaseType === 'no' || prodDatabaseType === 'oracle') {
+                        scriptsStorage.set(
+                            'docker:db',
+                            `echo "Docker for db ${prodDatabaseType} not configured for application ${this.baseName}"`
+                        );
+                    } else {
+                        scriptsStorage.set('docker:db', `docker-compose -f src/main/docker/${prodDatabaseType}.yml up -d`);
+                    }
+                } else {
+                    const dockerFile = `src/main/docker/${databaseType}.yml`;
+                    if (databaseType === 'cassandra') {
+                        scriptsStorage.set({
+                            'docker:db:await': 'wait-on tcp:9042 && sleep 20',
+                        });
+                    }
+                    if (databaseType === 'couchbase' || databaseType === 'cassandra') {
+                        scriptsStorage.set({
+                            'docker:db:build': `docker-compose -f ${dockerFile} build`,
+                            'docker:db': `docker-compose -f ${dockerFile} up -d`,
+                        });
+                    } else if (this.fs.exists(this.destinationPath(dockerFile))) {
+                        scriptsStorage.set('docker:db', `docker-compose -f ${dockerFile} up -d`);
+                    } else {
+                        scriptsStorage.set(
+                            'docker:db',
+                            `echo "Docker for db ${databaseType} not configured for application ${this.baseName}"`
+                        );
+                    }
+                }
+
+                const dockerOthers = [];
+                const dockerBuild = [];
+                ['keycloak', 'elasticsearch', 'kafka', 'consul', 'redis', 'memcached', 'jhipster-registry'].forEach(dockerConfig => {
+                    const dockerFile = `src/main/docker/${dockerConfig}.yml`;
+                    if (this.fs.exists(this.destinationPath(dockerFile))) {
+                        if (['cassandra', 'couchbase'].includes(dockerConfig)) {
+                            scriptsStorage.set(`docker:${dockerConfig}:build`, `docker-compose -f ${dockerFile} build`);
+                            dockerBuild.push(`npm run docker:${dockerConfig}:build`);
+                        }
+                        scriptsStorage.set(`docker:${dockerConfig}`, `docker-compose -f ${dockerFile} up -d`);
+                        dockerOthers.push(`npm run docker:${dockerConfig}`);
+                    }
+                });
+                scriptsStorage.set({
+                    'predocker:others': dockerBuild.join(' && '),
+                    'docker:others': dockerOthers.join(' && '),
+                    'ci:e2e:prepare:docker': 'npm run docker:db && npm run docker:others && docker ps -a',
+                });
+            },
+            packageJsonBackendScripts() {
+                const packageJsonStorage = this.createStorage('package.json');
+                const scriptsStorage = packageJsonStorage.createStorage('scripts');
+                const javaCommonLog = `-Dlogging.level.ROOT=OFF -Dlogging.level.org.zalando=OFF -Dlogging.level.io.github.jhipster=OFF -Dlogging.level.${this.jhipsterConfig.packageName}=OFF`;
+                const javaTestLog =
+                    '-Dlogging.level.org.springframework=OFF -Dlogging.level.org.springframework.web=OFF -Dlogging.level.org.springframework.security=OFF';
+
+                const buildTool = this.jhipsterConfig.buildTool;
+                let e2ePackage = 'target/e2e';
+                if (buildTool === 'maven') {
+                    scriptsStorage.set({
+                        'backend:info': './mvnw -ntp enforcer:display-info --batch-mode',
+                        'backend:doc:test': './mvnw -ntp javadoc:javadoc --batch-mode',
+                        'backend:nohttp:test': './mvnw -ntp checkstyle:check --batch-mode',
+                        'java:jar': './mvnw -ntp verify -DskipTests --batch-mode',
+                        'java:war': './mvnw -ntp verify -DskipTests --batch-mode -Pwar',
+                        'java:docker': './mvnw -ntp verify -DskipTests jib:dockerBuild',
+                        'backend:unit:test': `./mvnw -ntp -P-webpack verify --batch-mode ${javaCommonLog} ${javaTestLog}`,
+                    });
+                } else if (buildTool === 'gradle') {
+                    const excludeWebpack = this.jhipsterConfig.skipClient ? '' : '-x webpack';
+                    e2ePackage = 'e2e';
+                    scriptsStorage.set({
+                        'backend:info': './gradlew -v',
+                        'backend:doc:test': `./gradlew javadoc ${excludeWebpack}`,
+                        'backend:nohttp:test': `./gradlew checkstyleNohttp ${excludeWebpack}`,
+                        'java:jar': './gradlew bootJar -x test',
+                        'java:war': './gradlew bootWar -Pwar -x test',
+                        'java:docker': './gradlew bootJar jibDockerBuild',
+                        'backend:unit:test': `./gradlew test integrationTest ${excludeWebpack} ${javaCommonLog} ${javaTestLog}`,
+                        'postci:e2e:package': 'cp build/libs/*SNAPSHOT.$npm_package_config_packaging e2e.$npm_package_config_packaging',
+                    });
+                }
+
+                scriptsStorage.set({
+                    'java:jar:dev': 'npm run java:jar -- -Pdev,webpack',
+                    'java:jar:prod': 'npm run java:jar -- -Pprod',
+                    'java:war:dev': 'npm run java:war -- -Pdev,webpack',
+                    'java:war:prod': 'npm run java:war -- -Pprod',
+                    'java:docker:dev': 'npm run java:docker -- -Pdev,webpack',
+                    'java:docker:prod': 'npm run java:docker -- -Pprod',
+                    'ci:backend:test':
+                        'npm run backend:info && npm run backend:doc:test && npm run backend:nohttp:test && npm run backend:unit:test',
+                    'server:package': 'npm run java:$npm_package_config_packaging:$npm_package_config_default_environment',
+                    'ci:e2e:package':
+                        'npm run java:$npm_package_config_packaging:$npm_package_config_default_environment -- -Pe2e -Denforcer.skip=true',
+                    'preci:e2e:server:start': 'npm run docker:db:await --if-present && npm run docker:others:await --if-present',
+                    'ci:e2e:server:start': `java -jar ${e2ePackage}.$npm_package_config_packaging --spring.profiles.active=$npm_package_config_default_environment ${javaCommonLog} --logging.level.org.springframework.web=ERROR`,
+                });
+            },
+        };
+    }
+
+    get postWriting() {
+        if (useBlueprints) return;
+        return this._postWriting();
+    }
+
+    _install() {
+        return {
+            installing() {
+                if (this.skipClient) {
+                    if (!this.options.skipInstall) {
+                        this.log(chalk.bold(`\nInstalling generator-jhipster@${this.jhipsterVersion} locally using npm`));
+                        this.npmInstall();
+                    }
+                }
+            },
+        };
+    }
+
+    get install() {
+        if (useBlueprints) return;
+        return this._install();
+    }
+
+    // Public API method used by the getter and also by Blueprints
+    _end() {
+        return {
+            end() {
+                this.log(chalk.green.bold('\nServer application generated successfully.\n'));
+
+                let executable = 'mvnw';
+                if (this.buildTool === 'gradle') {
+                    executable = 'gradlew';
+                }
+                let logMsgComment = '';
+                if (os.platform() === 'win32') {
+                    logMsgComment = ` (${chalk.yellow.bold(executable)} if using Windows Command Prompt)`;
+                }
+                this.log(chalk.green(`Run your Spring Boot application:\n${chalk.yellow.bold(`./${executable}`)}${logMsgComment}`));
+            },
+        };
+    }
+
+    get end() {
+        if (useBlueprints) return;
+        return this._end();
+    }
+
+    _validateServerConfiguration(config = this.jhipsterConfig) {
+        if (!config.packageFolder) {
+            config.packageFolder = config.packageName.replace(/\./g, '/');
+        }
+
+        if (config.applicationType === 'uaa') {
+            config.authenticationType = 'uaa';
+        }
+
+        // JWT authentication is mandatory with Eureka, so the JHipster Registry
+        // can control the applications
+        if (config.serviceDiscoveryType === 'eureka' && config.authenticationType !== 'uaa' && config.authenticationType !== 'oauth2') {
+            config.authenticationType = 'jwt';
+        }
+
+        // Generate JWT secret key if key does not already exist in config
+        if ((config.authenticationType === 'jwt' || config.applicationType === 'microservice') && config.jwtSecretKey === undefined) {
+            config.jwtSecretKey = getBase64Secret(null, 64);
+        }
+        // Generate remember me key if key does not already exist in config
+        if (config.authenticationType === 'session' && !config.rememberMeKey) {
+            config.rememberMeKey = getRandomHex();
+        }
+
+        // user-management will be handled by UAA app, oauth expects users to be managed in IpP
+        if ((config.applicationType === 'gateway' && config.authenticationType === 'uaa') || config.authenticationType === 'oauth2') {
+            config.skipUserManagement = true;
+        }
+
+        if (config.enableHibernateCache && ['no', 'memcached'].includes(config.cacheProvider)) {
+            this.info(`Disabling hibernate cache for cache provider ${config.cacheProvider}`);
+            config.enableHibernateCache = false;
+        }
+
+        // Convert to false for templates.
+        if (config.serviceDiscoveryType === 'no' || !config.serviceDiscoveryType) {
+            config.serviceDiscoveryType = false;
+        }
+        if (config.websocket === 'no' || !config.websocket) {
+            config.websocket = false;
+        }
+        if (config.searchEngine === 'no' || !config.searchEngine) {
+            config.searchEngine = false;
+        }
+        if (config.messageBroker === 'no' || !config.messageBroker) {
+            config.messageBroker = false;
+        }
+
+        if (!config.databaseType && config.prodDatabaseType) {
+            config.databaseType = this.getDBTypeFromDBValue(config.prodDatabaseType);
+        }
+        if (!config.devDatabaseType && config.prodDatabaseType) {
+            config.devDatabaseType = config.prodDatabaseType;
+        }
+
+        // force variables unused by microservice applications
+        if (config.applicationType === 'microservice' || config.applicationType === 'uaa') {
+            config.websocket = false;
+        }
+
+        if (config.authenticationType === 'uaa' && !config.uaaBaseName) {
+            if (config.applicationType !== 'uaa') {
+                this.error('when using uaa authentication type, a UAA basename must be provided');
+            }
+            config.uaaBaseName = config.baseName;
+        }
+
+        const databaseType = config.databaseType;
+        if (databaseType === 'no') {
+            config.devDatabaseType = 'no';
+            config.prodDatabaseType = 'no';
+            config.enableHibernateCache = false;
+            if (config.authenticationType !== 'uaa') {
+                config.skipUserManagement = true;
+            }
+        } else if (['mongodb', 'neo4j', 'couchbase', 'cassandra'].includes(databaseType)) {
+            config.devDatabaseType = databaseType;
+            config.prodDatabaseType = databaseType;
+            config.enableHibernateCache = false;
+        }
+    }
+};

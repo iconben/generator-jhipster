@@ -1,7 +1,7 @@
 /**
- * Copyright 2013-2017 the original author or authors from the JHipster project.
+ * Copyright 2013-2020 the original author or authors from the JHipster project.
  *
- * This file is part of the JHipster project, see https://jhipster.github.io/
+ * This file is part of the JHipster project, see https://www.jhipster.tech/
  * for more information.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,73 +16,175 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+const chalk = require('chalk');
+const constants = require('../generator-constants');
+const { clientDefaultConfig } = require('../generator-defaults');
+
+const ANGULAR = constants.SUPPORTED_CLIENT_FRAMEWORKS.ANGULAR;
+const REACT = constants.SUPPORTED_CLIENT_FRAMEWORKS.REACT;
+const VUE = constants.SUPPORTED_CLIENT_FRAMEWORKS.VUE;
+
 module.exports = {
     askForModuleName,
     askForClient,
-    askForClientSideOpts,
-    askFori18n
+    askForClientTheme,
+    askForClientThemeVariant,
 };
 
 function askForModuleName() {
-    if (this.baseName) return;
+    if (this.jhipsterConfig.baseName) return undefined;
 
-    this.askModuleName(this);
+    return this.askModuleName(this);
 }
 
-function askForClient(meta) {
-    if (!meta && this.existingProject) return;
+function askForClient() {
+    if (this.existingProject) return true;
 
     const applicationType = this.applicationType;
+
+    const choices = [
+        {
+            value: ANGULAR,
+            name: 'Angular',
+        },
+        {
+            value: REACT,
+            name: 'React',
+        },
+        {
+            value: VUE,
+            name: 'Vue',
+        },
+        {
+            value: 'no',
+            name: 'No client',
+        },
+    ];
 
     const PROMPT = {
         type: 'list',
         name: 'clientFramework',
-        when: response => (applicationType !== 'microservice' && applicationType !== 'uaa'),
-        message: response => this.getNumberedQuestion('Which *Framework* would you like to use for the client?',
-            applicationType !== 'microservice' && applicationType !== 'uaa'),
-        choices: [
-            {
-                value: 'angularX',
-                name: 'Angular 4'
-            },
-            {
-                value: 'angular1',
-                name: 'AngularJS 1.x'
-            }
-        ],
-        default: 'angularX'
+        when: response => applicationType !== 'microservice' && applicationType !== 'uaa',
+        message: `Which ${chalk.yellow('*Framework*')} would you like to use for the client?`,
+        choices,
+        default: clientDefaultConfig.clientFramework,
     };
 
-    if (meta) return PROMPT; // eslint-disable-line consistent-return
-
-    const done = this.async();
-
-    this.prompt(PROMPT).then((prompt) => {
-        this.clientFramework = prompt.clientFramework;
-        done();
-    });
-}
-
-function askForClientSideOpts() {
-    if (this.existingProject) return;
-
-    const done = this.async();
-    const prompts = [
-        {
-            type: 'confirm',
-            name: 'useSass',
-            message: response => this.getNumberedQuestion('Would you like to use the LibSass stylesheet preprocessor for your CSS?', true),
-            default: false
+    return this.prompt(PROMPT).then(prompt => {
+        this.clientFramework = this.jhipsterConfig.clientFramework = prompt.clientFramework;
+        if (this.clientFramework === 'no') {
+            this.skipClient = this.jhipsterConfig.skipClient = true;
         }
-    ];
-    this.prompt(prompts).then((props) => {
-        this.useSass = props.useSass;
-        done();
     });
 }
 
-function askFori18n() {
-    if (this.existingProject || this.configOptions.skipI18nQuestion) return;
+function askForClientTheme() {
+    if (this.existingProject) {
+        return;
+    }
 
-    this.aski18n(this);
+    const skipClient = this.skipClient;
+    const defaultChoices = [
+        {
+            value: 'none',
+            name: 'Default JHipster',
+        },
+        { value: 'cerulean', name: 'Cerulean' },
+        { value: 'cosmo', name: 'Cosmo' },
+        { value: 'cerulean', name: 'Cyborg' },
+        { value: 'darkly', name: 'Darkly' },
+        { value: 'flatly', name: 'Flatly' },
+        { value: 'journal', name: 'Journal' },
+        { value: 'litera', name: 'Litera' },
+        { value: 'lumen', name: 'Lumen' },
+        { value: 'lux', name: 'Lux' },
+        { value: 'materia', name: 'Materia' },
+        { value: 'minty', name: 'Minty' },
+        { value: 'pulse', name: 'Pulse' },
+        { value: 'sandstone', name: 'Sandstone' },
+        { value: 'simplex', name: 'Simplex' },
+        { value: 'sketchy', name: 'Sketchy' },
+        { value: 'slate', name: 'Slate' },
+        { value: 'solar', name: 'Solar' },
+        { value: 'spacelab', name: 'Spacelab' },
+        { value: 'superhero', name: 'Superhero' },
+        { value: 'united', name: 'United' },
+        { value: 'yeti', name: 'Yeti' },
+    ];
+
+    const PROMPT = {
+        type: 'list',
+        name: 'clientTheme',
+        when: () => !skipClient,
+        message: 'Would you like to use a Bootswatch theme (https://bootswatch.com/)?',
+        choices: defaultChoices,
+        default: clientDefaultConfig.clientTheme,
+    };
+
+    const self = this;
+    const promptClientTheme = function (PROMPT) {
+        return self.prompt(PROMPT).then(prompt => {
+            self.clientTheme = self.jhipsterConfig.clientTheme = prompt.clientTheme;
+        });
+    };
+
+    const done = this.async();
+    this.httpsGet(
+        'https://bootswatch.com/api/4.json',
+        // eslint-disable-next-line consistent-return
+        body => {
+            try {
+                const { themes } = JSON.parse(body);
+
+                PROMPT.choices = [
+                    {
+                        value: 'none',
+                        name: 'Default JHipster',
+                    },
+                    ...themes.map(theme => ({
+                        value: theme.name.toLowerCase(),
+                        name: theme.name,
+                    })),
+                ];
+            } catch (err) {
+                this.warning('Could not fetch bootswatch themes from API. Using default ones.');
+            }
+            done(undefined, promptClientTheme(PROMPT));
+        },
+        () => {
+            this.warning('Could not fetch bootswatch themes from API. Using default ones.');
+            done(undefined, promptClientTheme(PROMPT));
+        }
+    );
+}
+
+function askForClientThemeVariant() {
+    if (this.existingProject) {
+        return undefined;
+    }
+    if (this.clientTheme === 'none') {
+        this.clientThemeVariant = '';
+        return undefined;
+    }
+
+    const skipClient = this.skipClient;
+
+    const choices = [
+        { value: 'primary', name: 'Primary' },
+        { value: 'dark', name: 'Dark' },
+        { value: 'light', name: 'Light' },
+    ];
+
+    const PROMPT = {
+        type: 'list',
+        name: 'clientThemeVariant',
+        when: () => !skipClient,
+        message: 'Choose a Bootswatch variant navbar theme (https://bootswatch.com/)?',
+        choices,
+        default: clientDefaultConfig.clientThemeVariant,
+    };
+
+    return this.prompt(PROMPT).then(prompt => {
+        this.clientThemeVariant = this.jhipsterConfig.clientThemeVariant = prompt.clientThemeVariant;
+    });
 }
